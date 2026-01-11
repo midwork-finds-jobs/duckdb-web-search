@@ -13,6 +13,7 @@ set(EXTENSION_SOURCES
     src/google_search_secret.cpp
     src/google_search_function.cpp
     src/google_image_search_function.cpp
+    src/annotation_copy.cpp
     src/http_client.cpp
 )
 

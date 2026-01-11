@@ -1,0 +1,118 @@
+# name: test/sql/google_search.test
+# description: Test google_search extension
+# group: [google_search]
+
+# Require extension
+require google_search
+
+# Test extension loaded
+statement ok
+SELECT 1
+
+# Test secret type registration - missing secret error
+statement error
+SELECT * FROM google_search('test') LIMIT 1
+----
+No google_search secret found
+
+# Test secret creation
+statement ok
+CREATE SECRET test_secret (
+    TYPE google_search,
+    key 'test_api_key',
+    cx 'test_cx'
+)
+
+# Test secret requires key
+statement error
+CREATE SECRET bad_secret (
+    TYPE google_search,
+    cx 'test_cx'
+)
+----
+requires 'key' parameter
+
+# Test secret requires cx
+statement error
+CREATE SECRET bad_secret2 (
+    TYPE google_search,
+    key 'test_key'
+)
+----
+requires 'cx' parameter
+
+# Test unknown parameter
+statement error
+CREATE SECRET bad_secret3 (
+    TYPE google_search,
+    key 'test_key',
+    cx 'test_cx',
+    unknown 'value'
+)
+----
+Unknown parameter
+
+# Test annotation copy function - basic
+statement ok
+CREATE TABLE test_annotations AS
+SELECT * FROM (VALUES
+    ('*.example.com/*', 'include'),
+    ('*.spam.com/*', 'exclude')
+) AS t(url_pattern, action)
+
+statement ok
+COPY test_annotations TO '__TEST_DIR__/annotations_basic.xml' (FORMAT google_pse_annotation)
+
+# Test annotation copy with comment
+statement ok
+CREATE TABLE test_annotations_comment AS
+SELECT * FROM (VALUES
+    ('*.example.com/*', 'include', 'Main site'),
+    ('*.spam.com/*', 'exclude', 'Spam')
+) AS t(url_pattern, action, comment)
+
+statement ok
+COPY test_annotations_comment TO '__TEST_DIR__/annotations_comment.xml' (FORMAT google_pse_annotation)
+
+# Test annotation copy with score
+statement ok
+CREATE TABLE test_annotations_score AS
+SELECT
+    '*.example.com/*' as url_pattern,
+    'include' as action,
+    'Test' as comment,
+    0.8::DOUBLE as score
+
+statement ok
+COPY test_annotations_score TO '__TEST_DIR__/annotations_score.xml' (FORMAT google_pse_annotation)
+
+# Test invalid action
+statement ok
+CREATE TABLE bad_action AS SELECT '*.test.com/*' as url_pattern, 'invalid' as action
+
+statement error
+COPY bad_action TO '__TEST_DIR__/bad.xml' (FORMAT google_pse_annotation)
+----
+Invalid action
+
+# Test invalid score (out of range)
+statement ok
+CREATE TABLE bad_score AS
+SELECT '*.test.com/*' as url_pattern, 'include' as action, 'comment'::VARCHAR as comment, 2.0::DOUBLE as score
+
+statement error
+COPY bad_score TO '__TEST_DIR__/bad_score.xml' (FORMAT google_pse_annotation)
+----
+Must be between -1.0 and 1.0
+
+# Test wrong column count
+statement error
+COPY (SELECT 'only_one_column') TO '__TEST_DIR__/bad.xml' (FORMAT google_pse_annotation)
+----
+requires 2-4 columns
+
+# Test wrong column type
+statement error
+COPY (SELECT 123 as url_pattern, 'include' as action) TO '__TEST_DIR__/bad.xml' (FORMAT google_pse_annotation)
+----
+must be VARCHAR
