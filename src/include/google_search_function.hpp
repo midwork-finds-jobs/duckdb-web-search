@@ -32,6 +32,7 @@ struct GoogleSearchFilters {
 
 	// Language/region
 	string gl;       // geolocation boost
+	string cr;       // country restrict (countryUS, countryFR, etc.)
 	string hl;       // host language
 	string language; // lr - document language (lang_en, lang_de, etc.)
 
