@@ -12,6 +12,7 @@ namespace duckdb {
 // Combined optimizer for all table functions
 static void GoogleSearchOptimizer(OptimizerExtensionInput &input, unique_ptr<LogicalOperator> &plan) {
 	OptimizeGoogleSearchLimitPushdown(plan);
+	OptimizeGoogleSearchOrderByPushdown(plan);
 	OptimizeGoogleImageSearchLimitPushdown(plan);
 }
 

@@ -7,6 +7,7 @@
 #include "duckdb/optimizer/optimizer_extension.hpp"
 #include "duckdb/planner/operator/logical_get.hpp"
 #include "duckdb/planner/operator/logical_limit.hpp"
+#include "duckdb/planner/operator/logical_order.hpp"
 #include "duckdb/planner/expression/bound_comparison_expression.hpp"
 #include "duckdb/planner/expression/bound_constant_expression.hpp"
 #include "duckdb/planner/expression/bound_columnref_expression.hpp"
@@ -39,6 +40,7 @@ struct GoogleSearchResult {
 	string file_format;
 	string pagemap; // JSON string
 	string site;    // Extracted from link for filtering
+	string date;    // Page date (for ORDER BY pushdown)
 };
 
 // Bind data for google_search() table function
@@ -465,10 +467,10 @@ static unique_ptr<FunctionData> GoogleSearchBind(ClientContext &context, TableFu
 		}
 	}
 
-	// Set output schema - includes site and timestamp for pushdown filtering
+	// Set output schema - includes site and date for pushdown filtering
 	bind_data->column_names = {"title",      "link",         "snippet",    "display_link",  "formatted_url",
 	                           "html_formatted_url", "html_title", "html_snippet", "mime",
-	                           "file_format", "pagemap",      "site"};
+	                           "file_format", "pagemap",      "site",       "date"};
 
 	for (const auto &name : bind_data->column_names) {
 		names.emplace_back(name);
@@ -740,6 +742,7 @@ static void GoogleSearchScan(ClientContext &context, TableFunctionInput &data, D
 		output.SetValue(9, count, Value(result.file_format));
 		output.SetValue(10, count, Value(result.pagemap));
 		output.SetValue(11, count, Value(result.site));
+		output.SetValue(12, count, result.date.empty() ? Value() : Value(result.date));
 
 		state.current_idx++;
 		count++;
@@ -791,6 +794,86 @@ void OptimizeGoogleSearchLimitPushdown(unique_ptr<LogicalOperator> &op) {
 	// Recurse into children
 	for (auto &child : op->children) {
 		OptimizeGoogleSearchLimitPushdown(child);
+	}
+}
+
+// ORDER BY pushdown optimizer - converts ORDER BY date to API sort parameter
+void OptimizeGoogleSearchOrderByPushdown(unique_ptr<LogicalOperator> &op) {
+	if (op->type == LogicalOperatorType::LOGICAL_ORDER_BY) {
+		auto &order = op->Cast<LogicalOrder>();
+		reference<LogicalOperator> child = *op->children[0];
+
+		// Skip projection operators to find the GET
+		while (child.get().type == LogicalOperatorType::LOGICAL_PROJECTION) {
+			child = *child.get().children[0];
+		}
+
+		if (child.get().type != LogicalOperatorType::LOGICAL_GET) {
+			OptimizeGoogleSearchOrderByPushdown(op->children[0]);
+			return;
+		}
+
+		auto &get = child.get().Cast<LogicalGet>();
+		if (get.function.name != "google_search") {
+			OptimizeGoogleSearchOrderByPushdown(op->children[0]);
+			return;
+		}
+
+		// Check if ordering by a single column
+		if (order.orders.size() != 1) {
+			OptimizeGoogleSearchOrderByPushdown(op->children[0]);
+			return;
+		}
+
+		auto &order_node = order.orders[0];
+		auto &expr = order_node.expression;
+
+		// Check if it's a column reference
+		if (expr->type != ExpressionType::BOUND_COLUMN_REF) {
+			OptimizeGoogleSearchOrderByPushdown(op->children[0]);
+			return;
+		}
+
+		auto &col_ref = expr->Cast<BoundColumnRefExpression>();
+
+		// Get column name from bind data
+		auto &bind_data = get.bind_data->Cast<GoogleSearchBindData>();
+		idx_t col_idx = col_ref.binding.column_index;
+
+		if (col_idx >= bind_data.column_names.size()) {
+			OptimizeGoogleSearchOrderByPushdown(op->children[0]);
+			return;
+		}
+
+		string col_name = bind_data.column_names[col_idx];
+
+		// Map column name to Google sort parameter
+		string sort_param;
+		if (col_name == "date") {
+			// Map to Google's date sort (estimated page date)
+			// See: https://developers.google.com/custom-search/docs/structured_search
+			if (order_node.type == OrderType::DESCENDING) {
+				sort_param = "date:d";
+			} else {
+				sort_param = "date:a";
+			}
+		} else {
+			// Column not supported for ORDER BY pushdown
+			OptimizeGoogleSearchOrderByPushdown(op->children[0]);
+			return;
+		}
+
+		// Set the sort parameter (only if not already set via named param)
+		if (bind_data.filters.sort.empty()) {
+			bind_data.filters.sort = sort_param;
+		}
+
+		return;
+	}
+
+	// Recurse into children
+	for (auto &child : op->children) {
+		OptimizeGoogleSearchOrderByPushdown(child);
 	}
 }
 

@@ -10,6 +10,9 @@ void RegisterGoogleSearchFunction(ExtensionLoader &loader);
 // LIMIT pushdown optimizer for google_search
 void OptimizeGoogleSearchLimitPushdown(unique_ptr<LogicalOperator> &op);
 
+// ORDER BY pushdown optimizer for google_search (ORDER BY date -> &sort=date-sdate)
+void OptimizeGoogleSearchOrderByPushdown(unique_ptr<LogicalOperator> &op);
+
 // Filter parameters for Google Search API
 struct GoogleSearchFilters {
 	// Text filters

@@ -82,6 +82,7 @@ LIMIT 10;
 | file_format | VARCHAR | File format |
 | pagemap | VARCHAR | Page metadata (JSON) |
 | site | VARCHAR | Domain (extracted from link) |
+| date | VARCHAR | Page date (NULL, for ORDER BY pushdown) |
 
 ### google_image_search()
 
@@ -125,9 +126,42 @@ LIMIT 10;
 | img_color_type | `color`, `gray`, `mono`, `trans` |
 | img_dominant_color | `black`, `blue`, `brown`, `gray`, `green`, `orange`, `pink`, `purple`, `red`, `teal`, `white`, `yellow` |
 
+## Sorting by Date
+
+Use `ORDER BY date` to sort results by Google's estimated page date:
+
+```sql
+-- Sort by date (newest first)
+SELECT title, link FROM google_search('technology news')
+ORDER BY date DESC LIMIT 10;
+
+-- Sort by date (oldest first)
+SELECT title, link FROM google_search('historical events')
+ORDER BY date ASC LIMIT 10;
+```
+
+The `ORDER BY date` clause is pushed down to the Google API (`&sort=date`), affecting which results are returned.
+
+**Note:** The `date` column is NULL in results - Google estimates the date from page features (URL, title, byline) for sorting but doesn't return it in the API response.
+
+### Date Biasing and Range Filtering
+
+For more control, use the `sort` parameter directly:
+
+```sql
+-- Bias strongly towards newer dates (keeps older results too)
+SELECT * FROM google_search('oil spill', sort:='date:d:s') LIMIT 10;
+
+-- Bias weakly towards older dates
+SELECT * FROM google_search('history', sort:='date:a:w') LIMIT 10;
+
+-- Date range: Jan 1 to Feb 1, 2024
+SELECT * FROM google_search('news', sort:='date:r:20240101:20240201') LIMIT 10;
+```
+
 ## Structured Data Search
 
-Google Custom Search can filter and sort results based on structured data embedded in web pages (PageMaps, meta tags, JSON-LD, Microdata, RDFa).
+Google Custom Search can filter results based on structured data embedded in web pages (PageMaps, meta tags, JSON-LD, Microdata, RDFa).
 
 See: https://developers.google.com/custom-search/docs/structured_search
 
@@ -141,11 +175,6 @@ SELECT * FROM google_search('machine learning',
     structured_data:='more:pagemap:document-author:smith')
 LIMIT 10;
 
--- Filter by any document with keywords
-SELECT * FROM google_search('programming',
-    structured_data:='more:pagemap:document-keywords:python')
-LIMIT 10;
-
 -- Filter by metatag
 SELECT * FROM google_search('news',
     structured_data:='more:pagemap:metatags-og\\:type:article')
@@ -153,25 +182,12 @@ LIMIT 10;
 ```
 
 Filter syntax: `more:pagemap:TYPE-NAME:VALUE`
-- Omit VALUE to match any instance of a field
-- Text values are tokenized (split into words)
-- Use `*` to combine multiple tokens: `more:p:document-keywords:irish*fiction`
 
-### Sorting by Structured Data
+### Advanced Sorting (sort parameter)
 
-Use the `sort` parameter to sort results by pagemap attributes:
+For advanced sorting beyond date, use the `sort` named parameter:
 
 ```sql
--- Sort by date (descending)
-SELECT * FROM google_search('technology news',
-    sort:='date-sdate:d')
-LIMIT 20;
-
--- Sort by date (ascending)
-SELECT * FROM google_search('historical events',
-    sort:='date-sdate:a')
-LIMIT 20;
-
 -- Sort by rating with strong bias (keeps results without rating)
 SELECT * FROM google_search('product reviews',
     sort:='review-rating:d:s')
@@ -179,7 +195,7 @@ LIMIT 20;
 
 -- Filter by date range (YYYYMMDD format)
 SELECT * FROM google_search('news',
-    sort:='date-sdate:r:20240101:20240331')
+    sort:='date:r:20240101:20240331')
 LIMIT 20;
 ```
 
@@ -193,26 +209,9 @@ Sort syntax: `TYPE-NAME:DIRECTION:STRENGTH`
 
 | Strength | Meaning |
 |----------|---------|
-| `:h` | Hard sort (default, excludes results without attribute) |
-| `:s` | Strong bias (promotes but doesn't exclude) |
+| `:h` | Hard sort (default) |
+| `:s` | Strong bias |
 | `:w` | Weak bias |
-
-### Common Structured Data Types
-
-| Type | Description | Example |
-|------|-------------|---------|
-| `date-sdate` | Page date | `sort:='date-sdate:d'` |
-| `metatags-*` | Meta tags | `more:pagemap:metatags-author:john` |
-| `document-*` | Document properties | `more:pagemap:document-keywords:python` |
-| `review-rating` | Review ratings | `sort:='review-rating:d:s'` |
-| `product-price` | Product prices | `sort:='product-price:a'` |
-
-### Note on SQL ORDER BY
-
-SQL `ORDER BY` on result columns (title, link, etc.) sorts already-fetched results locally.
-Google's `sort` parameter affects which results the API returns first.
-
-For API-level sorting, use the `sort` named parameter instead of SQL `ORDER BY`.
 
 ## API Behavior
 
