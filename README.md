@@ -110,8 +110,10 @@ LIMIT 10;
 | exclude_terms | Exclude words | `exclude_terms:='beginner'` |
 | or_terms | OR terms | `or_terms:='python rust'` |
 | file_type | File type filter | `file_type:='pdf'` |
-| country | Country (gl param) | `country:='us'` |
-| language | Language (lr param) | `language:='lang_en'` |
+| country | Country boost (gl) | `country:='us'` |
+| cr | Country restrict | `cr:='countryUS'` |
+| lr | Language restrict | `lr:='lang_en'` |
+| language | Language restrict (alias) | `language:='lang_en'` |
 | safe | Safe search | `safe:=true` |
 | rights | Usage rights | `rights:='cc_publicdomain'` |
 | sort | Sort/bias by structured data | `sort:='date-sdate:d'` |

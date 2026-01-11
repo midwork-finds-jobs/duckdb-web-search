@@ -207,6 +207,9 @@ static string BuildGoogleSearchUrl(const GoogleSearchBindData &bind_data, int st
 	if (!f.gl.empty()) {
 		url += "&gl=" + UrlEncode(f.gl);
 	}
+	if (!f.cr.empty()) {
+		url += "&cr=" + UrlEncode(f.cr);
+	}
 	if (!f.hl.empty()) {
 		url += "&hl=" + UrlEncode(f.hl);
 	}
@@ -452,6 +455,10 @@ static unique_ptr<FunctionData> GoogleSearchBind(ClientContext &context, TableFu
 			bind_data->filters.file_type = value;
 		} else if (key == "country") {
 			bind_data->filters.gl = value;
+		} else if (key == "cr") {
+			bind_data->filters.cr = value;
+		} else if (key == "lr") {
+			bind_data->filters.language = value;
 		} else if (key == "language") {
 			bind_data->filters.language = value;
 		} else if (key == "interface_language") {
@@ -891,6 +898,8 @@ void RegisterGoogleSearchFunction(ExtensionLoader &loader) {
 	google_search_func.named_parameters["or_terms"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["file_type"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["country"] = LogicalType::VARCHAR;
+	google_search_func.named_parameters["cr"] = LogicalType::VARCHAR;
+	google_search_func.named_parameters["lr"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["language"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["interface_language"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["safe"] = LogicalType::BOOLEAN;
