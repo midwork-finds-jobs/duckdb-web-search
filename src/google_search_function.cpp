@@ -146,6 +146,11 @@ static string BuildGoogleSearchUrl(const GoogleSearchBindData &bind_data, int st
 	// Build query
 	string full_query = bind_data.query;
 
+	// Prepend structured data filter (e.g., "more:pagemap:document-author:john")
+	if (!bind_data.filters.structured_data.empty()) {
+		full_query = bind_data.filters.structured_data + " " + full_query;
+	}
+
 	// Add site includes as OR clause (for LIMIT <= 100 with multiple sites)
 	if (use_or_sites && bind_data.site_includes.size() > 1) {
 		full_query += " (";
@@ -455,6 +460,8 @@ static unique_ptr<FunctionData> GoogleSearchBind(ClientContext &context, TableFu
 			bind_data->filters.rights = value;
 		} else if (key == "sort") {
 			bind_data->filters.sort = value;
+		} else if (key == "structured_data") {
+			bind_data->filters.structured_data = value;
 		}
 	}
 
@@ -806,6 +813,7 @@ void RegisterGoogleSearchFunction(ExtensionLoader &loader) {
 	google_search_func.named_parameters["safe"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["rights"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["sort"] = LogicalType::VARCHAR;
+	google_search_func.named_parameters["structured_data"] = LogicalType::VARCHAR;
 
 	loader.RegisterFunction(google_search_func);
 }

@@ -38,8 +38,11 @@ struct GoogleSearchFilters {
 	// Rights
 	string rights; // Creative Commons license
 
-	// Sort
-	string sort; // Sort expression
+	// Sort/bias for structured data (e.g., "date-sdate:d", "review-rating:d:s")
+	string sort;
+
+	// Structured data filter (prepended to query, e.g., "more:pagemap:document-author:john")
+	string structured_data;
 };
 
 } // namespace duckdb
