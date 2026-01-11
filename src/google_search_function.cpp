@@ -457,7 +457,7 @@ static unique_ptr<FunctionData> GoogleSearchBind(ClientContext &context, TableFu
 		} else if (key == "interface_language") {
 			bind_data->filters.hl = value;
 		} else if (key == "safe") {
-			bind_data->filters.safe = value;
+			bind_data->filters.safe = kv.second.GetValue<bool>() ? "active" : "off";
 		} else if (key == "rights") {
 			bind_data->filters.rights = value;
 		} else if (key == "sort") {
@@ -893,7 +893,7 @@ void RegisterGoogleSearchFunction(ExtensionLoader &loader) {
 	google_search_func.named_parameters["country"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["language"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["interface_language"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["safe"] = LogicalType::VARCHAR;
+	google_search_func.named_parameters["safe"] = LogicalType::BOOLEAN;
 	google_search_func.named_parameters["rights"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["sort"] = LogicalType::VARCHAR;
 	google_search_func.named_parameters["structured_data"] = LogicalType::VARCHAR;

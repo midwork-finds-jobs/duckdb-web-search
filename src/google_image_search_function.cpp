@@ -256,7 +256,7 @@ static unique_ptr<FunctionData> GoogleImageSearchBind(ClientContext &context, Ta
 		} else if (key == "date_restrict") {
 			bind_data->filters.date_restrict = value;
 		} else if (key == "safe") {
-			bind_data->filters.safe = value;
+			bind_data->filters.safe = kv.second.GetValue<bool>() ? "active" : "off";
 		} else if (key == "rights") {
 			bind_data->filters.rights = value;
 		} else if (key == "img_size") {
@@ -391,7 +391,7 @@ void RegisterGoogleImageSearchFunction(ExtensionLoader &loader) {
 	func.named_parameters["exclude_terms"] = LogicalType::VARCHAR;
 	func.named_parameters["site"] = LogicalType::VARCHAR;
 	func.named_parameters["date_restrict"] = LogicalType::VARCHAR;
-	func.named_parameters["safe"] = LogicalType::VARCHAR;
+	func.named_parameters["safe"] = LogicalType::BOOLEAN;
 	func.named_parameters["rights"] = LogicalType::VARCHAR;
 
 	// Image-specific parameters
