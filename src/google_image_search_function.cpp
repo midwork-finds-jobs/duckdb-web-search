@@ -10,6 +10,7 @@
 #include "duckdb/common/types/value.hpp"
 #include "yyjson.hpp"
 #include <mutex>
+#include <iostream>
 
 using namespace duckdb_yyjson;
 
@@ -134,7 +135,17 @@ static void FetchGoogleImageSearchResults(ClientContext &context, GoogleImageSea
 		auto response = HttpClient::Fetch(context, url, retry_config);
 
 		if (!response.success) {
-			if (response.status_code == 401) {
+			if (response.status_code == 429) {
+				// Rate limited - return partial results if we have any
+				if (!state.results.empty()) {
+					std::cerr << "Google Image Search API: Rate limit exceeded (429). Returning "
+					          << state.results.size() << " results." << std::endl;
+					state.fetch_complete = true;
+					return;
+				}
+				throw InvalidInputException(
+				    "Google Search API: Rate limit exceeded. Try again later or request higher quota.");
+			} else if (response.status_code == 401) {
 				throw InvalidInputException("Google Search API: Invalid API key");
 			} else if (response.status_code == 403) {
 				throw InvalidInputException("Google Search API: Access denied or quota exceeded");

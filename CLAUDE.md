@@ -61,3 +61,12 @@ Additional filters via named parameters:
 `google_image_search()` returns image-specific columns:
 - `image_url`, `thumbnail_url`, `width`, `height`, `mime`, etc.
 - Additional filters: `img_size`, `img_type`, `img_color_type`, `img_dominant_color`
+
+## JSON Columns
+The `pagemap` column is JSON type. Use arrow operators:
+```sql
+pagemap->'product'->0->>'name'  -- get string
+pagemap->'offer' IS NOT NULL    -- check existence
+```
+
+**NEVER use LIKE on JSON/structured data columns.** Use proper JSON operators instead.
