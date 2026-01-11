@@ -97,6 +97,12 @@ static string BuildGoogleImageSearchUrl(const GoogleImageSearchBindData &bind_da
 		url += "&imgDominantColor=" + UrlEncode(f.img_dominant_color);
 	}
 
+	// Request only needed fields for better performance
+	// See: https://developers.google.com/custom-search/v1/performance
+	url += "&fields=" + UrlEncode(
+	    "items(title,link,snippet,mime,image),"
+	    "queries(nextPage)");
+
 	return url;
 }
 

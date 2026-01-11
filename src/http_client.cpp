@@ -75,6 +75,8 @@ HttpResponse HttpClient::ExecuteHttpGet(DatabaseInstance &db, const std::string 
 	std::string escaped_url = StringUtil::Replace(url, "'", "''");
 
 	// Build query
+	// Note: gzip compression not used - http_request doesn't auto-decompress
+	// Performance optimization via &fields parameter in URL instead
 	std::string query = StringUtil::Format(
 	    "SELECT status, decode(body) AS body, "
 	    "content_type, "
