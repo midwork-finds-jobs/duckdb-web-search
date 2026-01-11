@@ -216,6 +216,12 @@ static string BuildGoogleSearchUrl(const GoogleSearchBindData &bind_data, int st
 		url += "&sort=" + UrlEncode(f.sort);
 	}
 
+	// Request only needed fields for better performance
+	// See: https://developers.google.com/custom-search/v1/performance
+	url += "&fields=" + UrlEncode(
+	    "items(title,link,snippet,displayLink,formattedUrl,htmlFormattedUrl,htmlTitle,htmlSnippet,mime,fileFormat,pagemap),"
+	    "queries(nextPage)");
+
 	return url;
 }
 
