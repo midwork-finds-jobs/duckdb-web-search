@@ -100,7 +100,7 @@ LIMIT 10;
 | html_snippet | VARCHAR | HTML-formatted snippet |
 | mime | VARCHAR | MIME type (for files) |
 | file_format | VARCHAR | File format |
-| pagemap | VARCHAR | Page metadata (JSON) |
+| pagemap | JSON | Page metadata (use `pagemap->'key'` to access) |
 | site | VARCHAR | Domain (extracted from link) |
 | date | VARCHAR | Page date (NULL, for ORDER BY pushdown) |
 | language | VARCHAR | Language filter (for WHERE pushdown) |
@@ -237,6 +237,97 @@ Sort syntax: `TYPE-NAME:DIRECTION:STRENGTH`
 | `:h` | Hard sort (default) |
 | `:s` | Strong bias |
 | `:w` | Weak bias |
+
+### Accessing Pagemap Data (JSON)
+
+The `pagemap` column is JSON type. Use arrow operators to extract structured data:
+
+```sql
+-- Extract product info from search results
+SELECT
+    title,
+    link,
+    pagemap->'product'->0->>'name' AS product_name,
+    pagemap->'offer'->0->>'price' AS price,
+    pagemap->'offer'->0->>'pricecurrency' AS currency
+FROM google_search('product')
+WHERE site = 'example.com'
+LIMIT 10;
+
+-- Check if pagemap contains product data
+SELECT title, link
+FROM google_search('shop')
+WHERE pagemap->'product' IS NOT NULL
+LIMIT 10;
+
+-- Get metatag info
+SELECT
+    title,
+    pagemap->'metatags'->0->>'og:description' AS description
+FROM google_search('news')
+LIMIT 5;
+```
+
+Arrow operators:
+- `->` returns JSON
+- `->>` returns VARCHAR (text)
+- `->0` accesses array index 0
+
+## Export Annotations (COPY TO)
+
+Export URL patterns to Google Programmable Search Engine annotation XML format.
+
+See: https://developers.google.com/custom-search/docs/annotations
+
+```sql
+-- Basic export (url_pattern, action)
+COPY (
+  SELECT url_pattern, action FROM my_sites
+) TO 'annotations.xml' (FORMAT google_pse_annotation);
+
+-- With comments
+COPY (
+  SELECT url_pattern, action, comment FROM my_sites
+) TO 'annotations.xml' (FORMAT google_pse_annotation);
+
+-- With score (-1.0 to 1.0 for ranking bias)
+COPY (
+  SELECT
+    '*.example.com/*' as url_pattern,
+    'include' as action,
+    'Main site' as comment,
+    1.0 as score
+) TO 'annotations.xml' (FORMAT google_pse_annotation);
+```
+
+### Column Requirements
+
+| Column | Type | Required | Description |
+|--------|------|----------|-------------|
+| url_pattern | VARCHAR | Yes | URL pattern with wildcards (e.g., `*.example.com/*`) |
+| action | VARCHAR | Yes | `'include'` or `'exclude'` |
+| comment | VARCHAR | No | Optional comment |
+| score | DOUBLE | No | Ranking bias from -1.0 to 1.0 (default: 1.0) |
+
+### Limits
+
+Google PSE enforces these limits:
+- **Max 5,000 annotations** per file
+- **Max 30KB** file size
+
+The extension validates these limits during export and fails with an error if exceeded.
+
+### Output Format
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Annotations>
+  <Annotation about="*.example.com/*" score="1.0">
+    <Label name="_include_"/>
+    <Comment>Main site</Comment>
+  </Annotation>
+</Annotations>
+```
 
 ## API Behavior
 

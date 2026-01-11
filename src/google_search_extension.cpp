@@ -4,8 +4,10 @@
 #include "google_search_secret.hpp"
 #include "google_search_function.hpp"
 #include "google_image_search_function.hpp"
+#include "annotation_copy.hpp"
 #include "duckdb.hpp"
 #include "duckdb/main/config.hpp"
+#include "duckdb/main/extension_helper.hpp"
 
 namespace duckdb {
 
@@ -17,6 +19,10 @@ static void GoogleSearchOptimizer(OptimizerExtensionInput &input, unique_ptr<Log
 }
 
 static void LoadInternal(ExtensionLoader &loader) {
+	// Autoload JSON extension (for pagemap column JSON type)
+	auto &db = loader.GetDatabaseInstance();
+	ExtensionHelper::TryAutoLoadExtension(db, "json");
+
 	// Register google_search secret type
 	RegisterGoogleSearchSecretType(loader);
 
@@ -26,8 +32,11 @@ static void LoadInternal(ExtensionLoader &loader) {
 	// Register google_image_search() table function
 	RegisterGoogleImageSearchFunction(loader);
 
+	// Register google_pse_annotation COPY function
+	RegisterAnnotationCopyFunction(loader);
+
 	// Register optimizer extension for LIMIT pushdown
-	auto &config = DBConfig::GetConfig(loader.GetDatabaseInstance());
+	auto &config = DBConfig::GetConfig(db);
 	OptimizerExtension optimizer;
 	optimizer.optimize_function = GoogleSearchOptimizer;
 	config.optimizer_extensions.push_back(std::move(optimizer));
