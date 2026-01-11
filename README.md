@@ -51,6 +51,21 @@ LIMIT 30;
 SELECT title, link, site FROM google_search('machine learning')
 WHERE site IN ('arxiv.org', 'github.com') AND site != 'gist.github.com'
 LIMIT 100;
+
+-- Filter by language (pushed to API as lr param)
+SELECT title, link FROM google_search('uutiset')
+WHERE language = 'fi'
+LIMIT 10;
+
+-- Filter by country (pushed to API as cr param)
+SELECT title, link FROM google_search('news')
+WHERE country = 'US'
+LIMIT 10;
+
+-- Combined language and country
+SELECT title, link FROM google_search('actualités')
+WHERE language = 'fr' AND country = 'FR'
+LIMIT 10;
 ```
 
 ### Image Search
@@ -83,6 +98,8 @@ LIMIT 10;
 | pagemap | VARCHAR | Page metadata (JSON) |
 | site | VARCHAR | Domain (extracted from link) |
 | date | VARCHAR | Page date (NULL, for ORDER BY pushdown) |
+| language | VARCHAR | Language filter (for WHERE pushdown) |
+| country | VARCHAR | Country filter (for WHERE pushdown) |
 
 ### google_image_search()
 
