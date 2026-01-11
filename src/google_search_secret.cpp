@@ -72,8 +72,14 @@ GoogleSearchConfig GetGoogleSearchConfigFromSecret(ClientContext &context) {
 
 	if (!secret_match.HasMatch()) {
 		throw InvalidInputException(
-		    "No google_search secret found. Create one with:\n"
-		    "CREATE SECRET google_search (TYPE google_search, key = 'YOUR_API_KEY', cx = 'YOUR_SEARCH_ENGINE_ID')");
+		    "No google_search secret found. Create one with:\n\n"
+		    "  CREATE SECRET google_search (\n"
+		    "    TYPE google_search,\n"
+		    "    key 'YOUR_API_KEY',\n"
+		    "    cx 'YOUR_SEARCH_ENGINE_ID'\n"
+		    "  );\n\n"
+		    "Get API key: https://developers.google.com/custom-search/v1/introduction\n"
+		    "Create cx:   https://programmablesearchengine.google.com/controlpanel/all");
 	}
 
 	auto &secret = secret_match.GetSecret();

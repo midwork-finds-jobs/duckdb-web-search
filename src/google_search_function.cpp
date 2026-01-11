@@ -21,6 +21,7 @@
 #include <ctime>
 #include <sstream>
 #include <iomanip>
+#include <iostream>
 
 using namespace duckdb_yyjson;
 
@@ -385,7 +386,16 @@ static void FetchGoogleSearchResults(ClientContext &context, GoogleSearchGlobalS
 			auto response = HttpClient::Fetch(context, url, retry_config);
 
 			if (!response.success) {
-				if (response.status_code == 401) {
+				if (response.status_code == 429) {
+					// Rate limited - return partial results if we have any
+					if (!state.results.empty()) {
+						std::cerr << "Google Search API: Rate limit exceeded (429). Returning " << state.results.size()
+						          << " results." << std::endl;
+						return;
+					}
+					throw InvalidInputException(
+					    "Google Search API: Rate limit exceeded. Try again later or request higher quota.");
+				} else if (response.status_code == 401) {
 					throw InvalidInputException("Google Search API: Invalid API key");
 				} else if (response.status_code == 403) {
 					throw InvalidInputException("Google Search API: Access denied or quota exceeded");
@@ -416,7 +426,17 @@ static void FetchGoogleSearchResults(ClientContext &context, GoogleSearchGlobalS
 			auto response = HttpClient::Fetch(context, url, retry_config);
 
 			if (!response.success) {
-				if (response.status_code == 401) {
+				if (response.status_code == 429) {
+					// Rate limited - return partial results if we have any
+					if (!state.results.empty()) {
+						std::cerr << "Google Search API: Rate limit exceeded (429). Returning " << state.results.size()
+						          << " results." << std::endl;
+						state.fetch_complete = true;
+						return;
+					}
+					throw InvalidInputException(
+					    "Google Search API: Rate limit exceeded. Try again later or request higher quota.");
+				} else if (response.status_code == 401) {
 					throw InvalidInputException("Google Search API: Invalid API key");
 				} else if (response.status_code == 403) {
 					throw InvalidInputException("Google Search API: Access denied or quota exceeded");
@@ -496,10 +516,15 @@ static unique_ptr<FunctionData> GoogleSearchBind(ClientContext &context, TableFu
 		names.emplace_back(name);
 	}
 
-	// All VARCHAR for now
+	// Set column types - pagemap is JSON, rest are VARCHAR
 	for (size_t i = 0; i < bind_data->column_names.size(); i++) {
-		return_types.emplace_back(LogicalType::VARCHAR);
-		bind_data->column_types.emplace_back(LogicalType::VARCHAR);
+		if (bind_data->column_names[i] == "pagemap") {
+			return_types.emplace_back(LogicalType::JSON());
+			bind_data->column_types.emplace_back(LogicalType::JSON());
+		} else {
+			return_types.emplace_back(LogicalType::VARCHAR);
+			bind_data->column_types.emplace_back(LogicalType::VARCHAR);
+		}
 	}
 
 	return std::move(bind_data);
