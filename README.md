@@ -112,7 +112,7 @@ LIMIT 10;
 | file_type | File type filter | `file_type:='pdf'` |
 | country | Country (gl param) | `country:='us'` |
 | language | Language (lr param) | `language:='lang_en'` |
-| safe | Safe search | `safe:='active'` |
+| safe | Safe search | `safe:=true` |
 | rights | Usage rights | `rights:='cc_publicdomain'` |
 | sort | Sort/bias by structured data | `sort:='date-sdate:d'` |
 | structured_data | Filter by pagemap | `structured_data:='more:pagemap:document-author:john'` |
