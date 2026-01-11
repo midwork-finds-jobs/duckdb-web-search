@@ -60,6 +60,8 @@ struct GoogleSearchBindData : public TableFunctionData {
 	timestamp_t date_from;            // Date range start
 	timestamp_t date_to;              // Date range end
 	bool has_date_filter = false;
+	string pushed_language;           // Language from WHERE clause (for lr param)
+	string pushed_country;            // Country from WHERE clause (for cr param)
 
 	// Other filters (via named params)
 	GoogleSearchFilters filters;
@@ -207,13 +209,19 @@ static string BuildGoogleSearchUrl(const GoogleSearchBindData &bind_data, int st
 	if (!f.gl.empty()) {
 		url += "&gl=" + UrlEncode(f.gl);
 	}
-	if (!f.cr.empty()) {
+	// Country restrict: prefer pushed down value, then named param
+	if (!bind_data.pushed_country.empty()) {
+		url += "&cr=" + UrlEncode(bind_data.pushed_country);
+	} else if (!f.cr.empty()) {
 		url += "&cr=" + UrlEncode(f.cr);
 	}
 	if (!f.hl.empty()) {
 		url += "&hl=" + UrlEncode(f.hl);
 	}
-	if (!f.language.empty()) {
+	// Language restrict: prefer pushed down value, then named param
+	if (!bind_data.pushed_language.empty()) {
+		url += "&lr=" + UrlEncode(bind_data.pushed_language);
+	} else if (!f.language.empty()) {
 		url += "&lr=" + UrlEncode(f.language);
 	}
 	if (!f.safe.empty()) {
@@ -474,10 +482,11 @@ static unique_ptr<FunctionData> GoogleSearchBind(ClientContext &context, TableFu
 		}
 	}
 
-	// Set output schema - includes site and date for pushdown filtering
+	// Set output schema - includes site, date, language, country for pushdown filtering
 	bind_data->column_names = {"title",      "link",         "snippet",    "display_link",  "formatted_url",
 	                           "html_formatted_url", "html_title", "html_snippet", "mime",
-	                           "file_format", "pagemap",      "site",       "date"};
+	                           "file_format", "pagemap",      "site",       "date",
+	                           "language",   "country"};
 
 	for (const auto &name : bind_data->column_names) {
 		names.emplace_back(name);
@@ -622,6 +631,30 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 						filters_to_remove.push_back(i);
 						continue;
 					}
+
+					// Handle language = 'value' -> lr param
+					if (col_ref.GetName() == "language" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
+						string lang = constant.value.ToString();
+						// Convert to Google format if needed (e.g., 'en' -> 'lang_en')
+						if (lang.find("lang_") != 0) {
+							lang = "lang_" + StringUtil::Lower(lang);
+						}
+						bind_data.pushed_language = lang;
+						filters_to_remove.push_back(i);
+						continue;
+					}
+
+					// Handle country = 'value' -> cr param
+					if (col_ref.GetName() == "country" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
+						string country = constant.value.ToString();
+						// Convert to Google format if needed (e.g., 'US' -> 'countryUS')
+						if (country.find("country") != 0) {
+							country = "country" + StringUtil::Upper(country);
+						}
+						bind_data.pushed_country = country;
+						filters_to_remove.push_back(i);
+						continue;
+					}
 				}
 			}
 
@@ -730,6 +763,7 @@ static unique_ptr<GlobalTableFunctionState> GoogleSearchInitGlobal(ClientContext
 // Scan function
 static void GoogleSearchScan(ClientContext &context, TableFunctionInput &data, DataChunk &output) {
 	auto &state = data.global_state->Cast<GoogleSearchGlobalState>();
+	auto &bind_data = data.bind_data->Cast<GoogleSearchBindData>();
 
 	idx_t count = 0;
 	idx_t max_count = STANDARD_VECTOR_SIZE;
@@ -750,6 +784,9 @@ static void GoogleSearchScan(ClientContext &context, TableFunctionInput &data, D
 		output.SetValue(10, count, Value(result.pagemap));
 		output.SetValue(11, count, Value(result.site));
 		output.SetValue(12, count, result.date.empty() ? Value() : Value(result.date));
+		// Language and country columns return the pushed down filter value
+		output.SetValue(13, count, bind_data.pushed_language.empty() ? Value() : Value(bind_data.pushed_language));
+		output.SetValue(14, count, bind_data.pushed_country.empty() ? Value() : Value(bind_data.pushed_country));
 
 		state.current_idx++;
 		count++;
