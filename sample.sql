@@ -1,7 +1,7 @@
 -- Sample: Search fiksuruoka.fi for products with structured data
 --
 -- Load extension (json extension is autoloaded)
-LOAD 'build/release/extension/google_search/google_search.duckdb_extension';
+LOAD 'build/release/extension/google_search/web_search.duckdb_extension';
 
 -- Setup API credentials
 CREATE SECRET IF NOT EXISTS google_search (

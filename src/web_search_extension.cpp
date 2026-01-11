@@ -1,6 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 
-#include "google_search_extension.hpp"
+#include "web_search_extension.hpp"
 #include "google_search_secret.hpp"
 #include "google_search_function.hpp"
 #include "google_image_search_function.hpp"
@@ -12,7 +12,7 @@
 namespace duckdb {
 
 // Combined optimizer for all table functions
-static void GoogleSearchOptimizer(OptimizerExtensionInput &input, unique_ptr<LogicalOperator> &plan) {
+static void WebSearchOptimizer(OptimizerExtensionInput &input, unique_ptr<LogicalOperator> &plan) {
 	OptimizeGoogleSearchLimitPushdown(plan);
 	OptimizeGoogleSearchOrderByPushdown(plan);
 	OptimizeGoogleImageSearchLimitPushdown(plan);
@@ -38,21 +38,21 @@ static void LoadInternal(ExtensionLoader &loader) {
 	// Register optimizer extension for LIMIT pushdown
 	auto &config = DBConfig::GetConfig(db);
 	OptimizerExtension optimizer;
-	optimizer.optimize_function = GoogleSearchOptimizer;
+	optimizer.optimize_function = WebSearchOptimizer;
 	config.optimizer_extensions.push_back(std::move(optimizer));
 }
 
-void GoogleSearchExtension::Load(ExtensionLoader &loader) {
+void WebSearchExtension::Load(ExtensionLoader &loader) {
 	LoadInternal(loader);
 }
 
-std::string GoogleSearchExtension::Name() {
-	return "google_search";
+std::string WebSearchExtension::Name() {
+	return "web_search";
 }
 
-std::string GoogleSearchExtension::Version() const {
-#ifdef EXT_VERSION_GOOGLE_SEARCH
-	return EXT_VERSION_GOOGLE_SEARCH;
+std::string WebSearchExtension::Version() const {
+#ifdef EXT_VERSION_WEB_SEARCH
+	return EXT_VERSION_WEB_SEARCH;
 #else
 	return "";
 #endif
@@ -62,7 +62,7 @@ std::string GoogleSearchExtension::Version() const {
 
 extern "C" {
 
-DUCKDB_CPP_EXTENSION_ENTRY(google_search, loader) {
+DUCKDB_CPP_EXTENSION_ENTRY(web_search, loader) {
 	duckdb::LoadInternal(loader);
 }
 }

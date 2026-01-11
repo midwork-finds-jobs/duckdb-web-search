@@ -4,7 +4,7 @@
 
 namespace duckdb {
 
-class GoogleSearchExtension : public Extension {
+class WebSearchExtension : public Extension {
 public:
 	void Load(ExtensionLoader &loader) override;
 	std::string Name() override;

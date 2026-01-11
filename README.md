@@ -1,4 +1,4 @@
-# DuckDB Google Search Extension
+# DuckDB Web Search Extension
 
 DuckDB extension for querying Google Custom Search API directly from SQL.
 
@@ -6,8 +6,8 @@ DuckDB extension for querying Google Custom Search API directly from SQL.
 
 ```sql
 -- Install from community extensions (when published)
-INSTALL google_search FROM community;
-LOAD google_search;
+INSTALL web_search FROM community;
+LOAD web_search;
 ```
 
 ## Setup
@@ -352,14 +352,14 @@ LIMIT is pushed down to minimize API calls.
 
 ```bash
 # Clone with submodules
-git clone --recursive https://github.com/midwork-finds-jobs/duckdb-search.git
-cd duckdb-search
+git clone --recursive https://github.com/midwork-finds-jobs/duckdb-web-search.git
+cd duckdb-web-search
 
 # Build
 make release GEN=ninja VCPKG_TOOLCHAIN_PATH=$(pwd)/vcpkg/scripts/buildsystems/vcpkg.cmake
 
 # Test
-./build/release/duckdb -c "LOAD 'build/release/extension/google_search/google_search.duckdb_extension';"
+./build/release/duckdb -c "LOAD 'build/release/extension/google_search/web_search.duckdb_extension';"
 ```
 
 ## Dependencies

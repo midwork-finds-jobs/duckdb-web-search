@@ -1,9 +1,9 @@
-# name: test/sql/google_search.test
+# name: test/sql/web_search.test
 # description: Test google_search extension
 # group: [google_search]
 
 # Require extension
-require google_search
+require web_search
 
 # Test extension loaded
 statement ok

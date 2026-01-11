@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-set(TARGET_NAME google_search)
+set(TARGET_NAME web_search)
 
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
@@ -9,7 +9,7 @@ project(${TARGET_NAME})
 include_directories(src/include)
 
 set(EXTENSION_SOURCES
-    src/google_search_extension.cpp
+    src/web_search_extension.cpp
     src/google_search_secret.cpp
     src/google_search_function.cpp
     src/google_image_search_function.cpp

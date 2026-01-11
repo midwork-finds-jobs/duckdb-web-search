@@ -1,4 +1,4 @@
-# DuckDB Google Search Extension
+# DuckDB Web Search Extension
 
 ## Overview
 DuckDB extension providing `google_search()` and `google_image_search()` table functions for Google Custom Search API.
@@ -10,7 +10,7 @@ make release GEN=ninja VCPKG_TOOLCHAIN_PATH=$(pwd)/vcpkg/scripts/buildsystems/vc
 
 ## Usage
 ```sql
-LOAD 'build/release/extension/google_search/google_search.duckdb_extension';
+LOAD 'build/release/extension/google_search/web_search.duckdb_extension';
 CREATE SECRET google_search (TYPE google_search, key 'API_KEY', cx 'SEARCH_ENGINE_ID');
 SELECT * FROM google_search('query') LIMIT 10;
 ```
