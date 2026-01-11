@@ -62,6 +62,7 @@ struct GoogleSearchBindData : public TableFunctionData {
 	bool has_date_filter = false;
 	string pushed_language;           // Language from WHERE clause (for lr param)
 	string pushed_country;            // Country from WHERE clause (for cr param)
+	string pushed_file_type;          // File type from WHERE clause (for fileType param)
 
 	// Other filters (via named params)
 	GoogleSearchFilters filters;
@@ -203,7 +204,10 @@ static string BuildGoogleSearchUrl(const GoogleSearchBindData &bind_data, int st
 	if (!f.or_terms.empty()) {
 		url += "&orTerms=" + UrlEncode(f.or_terms);
 	}
-	if (!f.file_type.empty()) {
+	// File type: prefer pushed down value, then named param
+	if (!bind_data.pushed_file_type.empty()) {
+		url += "&fileType=" + UrlEncode(bind_data.pushed_file_type);
+	} else if (!f.file_type.empty()) {
 		url += "&fileType=" + UrlEncode(f.file_type);
 	}
 	if (!f.gl.empty()) {
@@ -482,11 +486,11 @@ static unique_ptr<FunctionData> GoogleSearchBind(ClientContext &context, TableFu
 		}
 	}
 
-	// Set output schema - includes site, date, language, country for pushdown filtering
+	// Set output schema - includes site, date, language, country, file_type for pushdown filtering
 	bind_data->column_names = {"title",      "link",         "snippet",    "display_link",  "formatted_url",
 	                           "html_formatted_url", "html_title", "html_snippet", "mime",
 	                           "file_format", "pagemap",      "site",       "date",
-	                           "language",   "country"};
+	                           "language",   "country",      "file_type"};
 
 	for (const auto &name : bind_data->column_names) {
 		names.emplace_back(name);
@@ -655,6 +659,13 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 						filters_to_remove.push_back(i);
 						continue;
 					}
+
+					// Handle file_type = 'value' -> fileType param
+					if (col_ref.GetName() == "file_type" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
+						bind_data.pushed_file_type = StringUtil::Lower(constant.value.ToString());
+						filters_to_remove.push_back(i);
+						continue;
+					}
 				}
 			}
 
@@ -784,9 +795,10 @@ static void GoogleSearchScan(ClientContext &context, TableFunctionInput &data, D
 		output.SetValue(10, count, Value(result.pagemap));
 		output.SetValue(11, count, Value(result.site));
 		output.SetValue(12, count, result.date.empty() ? Value() : Value(result.date));
-		// Language and country columns return the pushed down filter value
+		// Language, country, file_type columns return the pushed down filter value
 		output.SetValue(13, count, bind_data.pushed_language.empty() ? Value() : Value(bind_data.pushed_language));
 		output.SetValue(14, count, bind_data.pushed_country.empty() ? Value() : Value(bind_data.pushed_country));
+		output.SetValue(15, count, bind_data.pushed_file_type.empty() ? Value() : Value(bind_data.pushed_file_type));
 
 		state.current_idx++;
 		count++;

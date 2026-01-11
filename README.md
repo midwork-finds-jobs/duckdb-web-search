@@ -66,6 +66,11 @@ LIMIT 10;
 SELECT title, link FROM google_search('actualités')
 WHERE language = 'fr' AND country = 'FR'
 LIMIT 10;
+
+-- Filter by file type (pushed to API as fileType param)
+SELECT title, link FROM google_search('machine learning research')
+WHERE file_type = 'pdf'
+LIMIT 10;
 ```
 
 ### Image Search
@@ -100,6 +105,7 @@ LIMIT 10;
 | date | VARCHAR | Page date (NULL, for ORDER BY pushdown) |
 | language | VARCHAR | Language filter (for WHERE pushdown) |
 | country | VARCHAR | Country filter (for WHERE pushdown) |
+| file_type | VARCHAR | File type filter (for WHERE pushdown) |
 
 ### google_image_search()
 
