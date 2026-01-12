@@ -56,14 +56,20 @@ struct GoogleSearchBindData : public TableFunctionData {
 	vector<LogicalType> column_types;
 
 	// Pushdown filter data
-	vector<string> site_includes;     // Sites to include (OR'd into query as site:domain)
-	vector<string> site_excludes;     // Sites to exclude (OR'd into query as -site:domain)
-	timestamp_t date_from;            // Date range start
-	timestamp_t date_to;              // Date range end
+	vector<string> site_includes; // Sites to include (OR'd into query as site:domain)
+	vector<string> site_excludes; // Sites to exclude (OR'd into query as -site:domain)
+	timestamp_t date_from;        // Date range start
+	timestamp_t date_to;          // Date range end
 	bool has_date_filter = false;
-	string pushed_language;           // Language from WHERE clause (for lr param)
-	string pushed_country;            // Country from WHERE clause (for cr param)
-	string pushed_file_type;          // File type from WHERE clause (for fileType param)
+	string pushed_language;  // Language from WHERE clause (for lr param)
+	string pushed_country;   // Country from WHERE clause (for cr param)
+	string pushed_file_type; // File type from WHERE clause (for fileType param)
+
+	// Term filter pushdown
+	vector<string> term_query;   // Single term = 'x' → append to q=
+	vector<string> term_or;      // IN (...) or multiple = → orTerms
+	vector<string> term_exclude; // != 'x' → excludeTerms
+	string pushed_exact_match;   // exact_match = 'phrase' → exactTerms
 
 	// Other filters (via named params)
 	GoogleSearchFilters filters;
@@ -143,8 +149,8 @@ static string TimestampToDateRestrict(timestamp_t from_ts, timestamp_t to_ts) {
 // Build the Google Search API URL
 // site_filter: single site for siteSearch param (used when LIMIT > 100)
 // use_or_sites: if true, add all site_includes as (site:a OR site:b) to query (used when LIMIT <= 100)
-static string BuildGoogleSearchUrl(const GoogleSearchBindData &bind_data, int start,
-                                    const string &site_filter = "", bool use_or_sites = false) {
+static string BuildGoogleSearchUrl(const GoogleSearchBindData &bind_data, int start, const string &site_filter = "",
+                                   bool use_or_sites = false) {
 	string url = "https://www.googleapis.com/customsearch/v1";
 	url += "?key=" + UrlEncode(bind_data.api_key);
 	url += "&cx=" + UrlEncode(bind_data.cx);
@@ -176,6 +182,11 @@ static string BuildGoogleSearchUrl(const GoogleSearchBindData &bind_data, int st
 		full_query += " -site:" + site;
 	}
 
+	// Append single term to query (from term = 'x' with only one term)
+	if (!bind_data.term_query.empty()) {
+		full_query += " " + bind_data.term_query[0];
+	}
+
 	url += "&q=" + UrlEncode(full_query);
 	url += "&num=10"; // Google max per page
 	url += "&start=" + std::to_string(start);
@@ -196,14 +207,41 @@ static string BuildGoogleSearchUrl(const GoogleSearchBindData &bind_data, int st
 
 	// Add other filters from named params
 	auto &f = bind_data.filters;
-	if (!f.exact_terms.empty()) {
-		url += "&exactTerms=" + UrlEncode(f.exact_terms);
+
+	// Combine exactTerms from named param and pushdown
+	string exact_terms = f.exact_terms;
+	if (!bind_data.pushed_exact_match.empty()) {
+		if (!exact_terms.empty()) {
+			exact_terms += " ";
+		}
+		exact_terms += bind_data.pushed_exact_match;
 	}
-	if (!f.exclude_terms.empty()) {
-		url += "&excludeTerms=" + UrlEncode(f.exclude_terms);
+	if (!exact_terms.empty()) {
+		url += "&exactTerms=" + UrlEncode(exact_terms);
 	}
-	if (!f.or_terms.empty()) {
-		url += "&orTerms=" + UrlEncode(f.or_terms);
+
+	// Combine excludeTerms from named param and pushdown
+	string exclude_terms = f.exclude_terms;
+	if (!bind_data.term_exclude.empty()) {
+		if (!exclude_terms.empty()) {
+			exclude_terms += " ";
+		}
+		exclude_terms += StringUtil::Join(bind_data.term_exclude, " ");
+	}
+	if (!exclude_terms.empty()) {
+		url += "&excludeTerms=" + UrlEncode(exclude_terms);
+	}
+
+	// Combine orTerms from named param and pushdown
+	string or_terms = f.or_terms;
+	if (!bind_data.term_or.empty()) {
+		if (!or_terms.empty()) {
+			or_terms += " ";
+		}
+		or_terms += StringUtil::Join(bind_data.term_or, " ");
+	}
+	if (!or_terms.empty()) {
+		url += "&orTerms=" + UrlEncode(or_terms);
 	}
 	// File type: prefer pushed down value, then named param
 	if (!bind_data.pushed_file_type.empty()) {
@@ -241,9 +279,9 @@ static string BuildGoogleSearchUrl(const GoogleSearchBindData &bind_data, int st
 
 	// Request only needed fields for better performance
 	// See: https://developers.google.com/custom-search/v1/performance
-	url += "&fields=" + UrlEncode(
-	    "items(title,link,snippet,displayLink,formattedUrl,htmlFormattedUrl,htmlTitle,htmlSnippet,mime,fileFormat,pagemap),"
-	    "queries(nextPage)");
+	url += "&fields=" + UrlEncode("items(title,link,snippet,displayLink,formattedUrl,htmlFormattedUrl,htmlTitle,"
+	                              "htmlSnippet,mime,fileFormat,pagemap),"
+	                              "queries(nextPage)");
 
 	return url;
 }
@@ -260,7 +298,7 @@ static string GetJsonString(yyjson_val *obj, const char *key) {
 // Parse a single API response and add results to state
 // Returns the next startIndex, or -1 if no more pages
 static int ParseGoogleSearchResponse(const string &response_body, GoogleSearchGlobalState &state,
-                                      const GoogleSearchBindData &bind_data) {
+                                     const GoogleSearchBindData &bind_data) {
 	yyjson_doc *doc = yyjson_read(response_body.c_str(), response_body.size(), 0);
 	if (!doc) {
 		throw IOException("Failed to parse Google Search API response as JSON");
@@ -506,11 +544,11 @@ static unique_ptr<FunctionData> GoogleSearchBind(ClientContext &context, TableFu
 		}
 	}
 
-	// Set output schema - includes site, date, language, country, file_type for pushdown filtering
-	bind_data->column_names = {"title",      "link",         "snippet",    "display_link",  "formatted_url",
-	                           "html_formatted_url", "html_title", "html_snippet", "mime",
-	                           "file_format", "pagemap",      "site",       "date",
-	                           "language",   "country",      "file_type"};
+	// Set output schema - includes site, date, language, country, file_type, term, exact_match for pushdown filtering
+	bind_data->column_names = {
+	    "title",      "link",         "snippet", "display_link", "formatted_url", "html_formatted_url",
+	    "html_title", "html_snippet", "mime",    "file_format",  "pagemap",       "site",
+	    "date",       "language",     "country", "file_type",    "term",          "exact_match"};
 
 	for (const auto &name : bind_data->column_names) {
 		names.emplace_back(name);
@@ -641,6 +679,32 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 						continue;
 					}
 				}
+
+				// Handle term IN ('a', 'b', 'c') -> orTerms
+				if (col_ref.GetName() == "term") {
+					vector<string> term_values;
+					bool all_constants = true;
+
+					for (size_t j = 1; j < op.children.size(); j++) {
+						if (op.children[j]->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
+							auto &constant = op.children[j]->Cast<BoundConstantExpression>();
+							if (constant.value.type().id() == LogicalTypeId::VARCHAR) {
+								term_values.push_back(constant.value.ToString());
+								continue;
+							}
+						}
+						all_constants = false;
+						break;
+					}
+
+					if (all_constants && !term_values.empty()) {
+						for (const auto &term : term_values) {
+							bind_data.term_or.push_back(term);
+						}
+						filters_to_remove.push_back(i);
+						continue;
+					}
+				}
 			}
 		}
 
@@ -691,6 +755,20 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 						filters_to_remove.push_back(i);
 						continue;
 					}
+
+					// Handle term = 'value' -> append to query (single) or orTerms (multiple)
+					if (col_ref.GetName() == "term" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
+						bind_data.term_query.push_back(constant.value.ToString());
+						filters_to_remove.push_back(i);
+						continue;
+					}
+
+					// Handle exact_match = 'phrase' -> exactTerms
+					if (col_ref.GetName() == "exact_match" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
+						bind_data.pushed_exact_match = constant.value.ToString();
+						filters_to_remove.push_back(i);
+						continue;
+					}
 				}
 			}
 
@@ -703,6 +781,13 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 
 					if (col_ref.GetName() == "site" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
 						bind_data.site_excludes.push_back(constant.value.ToString());
+						filters_to_remove.push_back(i);
+						continue;
+					}
+
+					// Handle term != 'value' -> excludeTerms
+					if (col_ref.GetName() == "term" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
+						bind_data.term_exclude.push_back(constant.value.ToString());
 						filters_to_remove.push_back(i);
 						continue;
 					}
@@ -778,6 +863,15 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 		}
 	}
 
+	// Post-process term filters: multiple term = 'x' becomes orTerms (not all ANDed in query)
+	if (bind_data.term_query.size() > 1) {
+		// Multiple = conditions should use orTerms, not append all to query
+		for (const auto &term : bind_data.term_query) {
+			bind_data.term_or.push_back(term);
+		}
+		bind_data.term_query.clear();
+	}
+
 	// Remove pushed down filters (iterate in reverse to preserve indices)
 	for (auto it = filters_to_remove.rbegin(); it != filters_to_remove.rend(); ++it) {
 		filters.erase(filters.begin() + *it);
@@ -820,10 +914,13 @@ static void GoogleSearchScan(ClientContext &context, TableFunctionInput &data, D
 		output.SetValue(10, count, Value(result.pagemap));
 		output.SetValue(11, count, Value(result.site));
 		output.SetValue(12, count, result.date.empty() ? Value() : Value(result.date));
-		// Language, country, file_type columns return the pushed down filter value
+		// Language, country, file_type, term, exact_match columns return the pushed down filter value or NULL
 		output.SetValue(13, count, bind_data.pushed_language.empty() ? Value() : Value(bind_data.pushed_language));
 		output.SetValue(14, count, bind_data.pushed_country.empty() ? Value() : Value(bind_data.pushed_country));
 		output.SetValue(15, count, bind_data.pushed_file_type.empty() ? Value() : Value(bind_data.pushed_file_type));
+		output.SetValue(16, count, Value()); // term column is virtual for pushdown only
+		output.SetValue(17, count,
+		                bind_data.pushed_exact_match.empty() ? Value() : Value(bind_data.pushed_exact_match));
 
 		state.current_idx++;
 		count++;

@@ -72,6 +72,21 @@ LIMIT 10;
 SELECT title, link FROM google_search('machine learning research')
 WHERE file_type = 'pdf'
 LIMIT 10;
+
+-- Exact phrase match (pushed to API as exactTerms param)
+SELECT title, link FROM google_search('engineering jobs')
+WHERE exact_match = 'systems engineering'
+LIMIT 10;
+
+-- OR terms (pushed to API as orTerms param)
+SELECT title, link FROM google_search('jobs')
+WHERE term IN ('remote', 'hybrid', 'onsite')
+LIMIT 10;
+
+-- Exclude terms (pushed to API as excludeTerms param)
+SELECT title, link FROM google_search('programming tutorial')
+WHERE term != 'beginner' AND term != 'intro'
+LIMIT 10;
 ```
 
 ### Image Search
@@ -107,6 +122,8 @@ LIMIT 10;
 | language | VARCHAR | Language filter (for WHERE pushdown) |
 | country | VARCHAR | Country filter (for WHERE pushdown) |
 | file_type | VARCHAR | File type filter (for WHERE pushdown) |
+| term | VARCHAR | Term filter (for WHERE pushdown to orTerms/excludeTerms) |
+| exact_match | VARCHAR | Exact phrase filter (for WHERE pushdown to exactTerms) |
 
 ### google_image_search()
 
@@ -346,11 +363,17 @@ The extension validates these limits during export and fails with an error if ex
 
 ### Filter Pushdown
 
-Site filters in WHERE clause are pushed down to the API:
+WHERE clause filters are pushed down to the API:
 
 - `site = 'x.com'` → `siteSearch=x.com`
 - `site IN (...)` → OR syntax or per-site queries
 - `site != 'x.com'` → `-site:x.com` in query
+- `language = 'fi'` → `lr=lang_fi`
+- `country = 'US'` → `cr=countryUS`
+- `file_type = 'pdf'` → `fileType=pdf`
+- `exact_match = 'phrase'` → `exactTerms=phrase`
+- `term IN ('a', 'b')` → `orTerms=a b`
+- `term != 'x'` → `excludeTerms=x`
 
 LIMIT is pushed down to minimize API calls.
 
