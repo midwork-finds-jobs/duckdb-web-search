@@ -23,8 +23,9 @@ CREATE SECRET google_search (
 ```
 
 Get your credentials at:
-- API Key: https://console.cloud.google.com/apis/credentials
-- Search Engine ID (cx): https://programmablesearchengine.google.com/
+
+- API Key: <https://console.cloud.google.com/apis/credentials>
+- Search Engine ID (cx): <https://programmablesearchengine.google.com/>
 
 ## Usage
 
@@ -188,7 +189,7 @@ SELECT * FROM google_search('news', sort:='date:r:20240101:20240201') LIMIT 10;
 
 Google Custom Search can filter results based on structured data embedded in web pages (PageMaps, meta tags, JSON-LD, Microdata, RDFa).
 
-See: https://developers.google.com/custom-search/docs/structured_search
+See: <https://developers.google.com/custom-search/docs/structured_search>
 
 ### Filtering by Structured Data
 
@@ -240,35 +241,35 @@ Sort syntax: `TYPE-NAME:DIRECTION:STRENGTH`
 
 ### Accessing Pagemap Data (JSON)
 
-The `pagemap` column is JSON type. Use arrow operators to extract structured data:
+The `pagemap` column is JSON type containing page metadata extracted by Google.
+
+**Limitation:** Google only extracts limited structured data types. Product/Offer schema (JSON-LD, microdata) is **not** returned in API results. Available data typically includes:
+
+- `metatags` - OpenGraph, Twitter cards, meta tags
+- `cse_image` - Main page image
+- `cse_thumbnail` - Thumbnail image
+
+Use arrow operators to extract data:
 
 ```sql
--- Extract product info from search results
+-- Get metatag info (commonly available)
 SELECT
     title,
     link,
-    pagemap->'product'->0->>'name' AS product_name,
-    pagemap->'offer'->0->>'price' AS price,
-    pagemap->'offer'->0->>'pricecurrency' AS currency
-FROM google_search('product')
-WHERE site = 'example.com'
-LIMIT 10;
-
--- Check if pagemap contains product data
-SELECT title, link
-FROM google_search('shop')
-WHERE pagemap->'product' IS NOT NULL
-LIMIT 10;
-
--- Get metatag info
-SELECT
-    title,
-    pagemap->'metatags'->0->>'og:description' AS description
+    pagemap->'metatags'->0->>'og:title' AS og_title,
+    pagemap->'metatags'->0->>'og:description' AS description,
+    pagemap->'cse_image'->0->>'src' AS image
 FROM google_search('news')
+LIMIT 5;
+
+-- Check available keys in pagemap
+SELECT title, json_keys(pagemap) as available_keys
+FROM google_search('shop')
 LIMIT 5;
 ```
 
 Arrow operators:
+
 - `->` returns JSON
 - `->>` returns VARCHAR (text)
 - `->0` accesses array index 0
@@ -277,7 +278,7 @@ Arrow operators:
 
 Export URL patterns to Google Programmable Search Engine annotation XML format.
 
-See: https://developers.google.com/custom-search/docs/annotations
+See: <https://developers.google.com/custom-search/docs/annotations>
 
 ```sql
 -- Basic export (url_pattern, action)
@@ -312,6 +313,7 @@ COPY (
 ### Limits
 
 Google PSE enforces these limits:
+
 - **Max 5,000 annotations** per file
 - **Max 30KB** file size
 
@@ -332,16 +334,20 @@ The extension validates these limits during export and fails with an error if ex
 ## API Behavior
 
 ### Pagination
+
 - Google returns max 10 results per API call
 - Extension automatically paginates to fulfill LIMIT
 - Max 100 results per query (Google API limit)
 
 ### Multi-Site Queries
+
 - **LIMIT ≤ 100**: Single query with `(site:a OR site:b)` syntax
 - **LIMIT > 100**: Separate queries per site (up to 100 each), round-robin
 
 ### Filter Pushdown
+
 Site filters in WHERE clause are pushed down to the API:
+
 - `site = 'x.com'` → `siteSearch=x.com`
 - `site IN (...)` → OR syntax or per-site queries
 - `site != 'x.com'` → `-site:x.com` in query
@@ -366,6 +372,7 @@ make release GEN=ninja VCPKG_TOOLCHAIN_PATH=$(pwd)/vcpkg/scripts/buildsystems/vc
 
 - DuckDB (via git submodule)
 - [http_request](https://community-extensions.duckdb.org/extensions/http_request.html) extension (auto-loaded)
+- [json](https://duckdb.org/docs/data/json/overview) extension (auto-loaded, for `pagemap` column)
 
 ## License
 

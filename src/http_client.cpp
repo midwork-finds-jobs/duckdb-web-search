@@ -74,15 +74,14 @@ HttpResponse HttpClient::ExecuteHttpGet(DatabaseInstance &db, const std::string 
 	// Escape URL for SQL
 	std::string escaped_url = StringUtil::Replace(url, "'", "''");
 
-	// Build query
-	// Note: gzip compression not used - http_request doesn't auto-decompress
-	// Performance optimization via &fields parameter in URL instead
-	std::string query = StringUtil::Format(
-	    "SELECT status, decode(body) AS body, "
-	    "content_type, "
-	    "headers['retry-after'] AS retry_after "
-	    "FROM http_get('%s')",
-	    escaped_url);
+	// Build query with gzip compression for smaller responses
+	// See: https://developers.google.com/custom-search/v1/performance#gzip
+	// Note: use struct syntax {'k':'v'} not MAP - MAP causes segfault
+	std::string query = StringUtil::Format("SELECT status, decode(body) AS body, "
+	                                       "content_type, "
+	                                       "headers['retry-after'] AS retry_after "
+	                                       "FROM http_get('%s', headers := {'Accept-Encoding': 'gzip'})",
+	                                       escaped_url);
 
 	auto result = conn.Query(query);
 
