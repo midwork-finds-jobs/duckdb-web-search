@@ -36,10 +36,9 @@ static void LoadInternal(ExtensionLoader &loader) {
 	RegisterAnnotationCopyFunction(loader);
 
 	// Register optimizer extension for LIMIT pushdown
-	auto &config = DBConfig::GetConfig(db);
 	OptimizerExtension optimizer;
 	optimizer.optimize_function = WebSearchOptimizer;
-	config.optimizer_extensions.push_back(std::move(optimizer));
+	OptimizerExtension::Register(DBConfig::GetConfig(db), std::move(optimizer));
 }
 
 void WebSearchExtension::Load(ExtensionLoader &loader) {
