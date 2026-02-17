@@ -8,6 +8,7 @@
 #include "duckdb.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/extension_helper.hpp"
+#include "duckdb/optimizer/optimizer_extension.hpp"
 
 namespace duckdb {
 
