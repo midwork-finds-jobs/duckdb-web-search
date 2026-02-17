@@ -1,6 +1,6 @@
 # name: test/sql/web_search.test
 # description: Test google_search extension
-# group: [google_search]
+# group: [sql]
 
 # Require extension
 require web_search
