@@ -19,9 +19,9 @@ namespace duckdb {
 // Image search result from Google API
 struct GoogleImageSearchResult {
 	string title;
-	string link;           // Page URL
-	string image_url;      // Direct image URL
-	string thumbnail_url;  // Thumbnail URL
+	string link;          // Page URL
+	string image_url;     // Direct image URL
+	string thumbnail_url; // Thumbnail URL
 	int width = 0;
 	int height = 0;
 	int thumbnail_width = 0;
@@ -100,9 +100,8 @@ static string BuildGoogleImageSearchUrl(const GoogleImageSearchBindData &bind_da
 
 	// Request only needed fields for better performance
 	// See: https://developers.google.com/custom-search/v1/performance
-	url += "&fields=" + UrlEncode(
-	    "items(title,link,snippet,mime,image),"
-	    "queries(nextPage)");
+	url += "&fields=" + UrlEncode("items(title,link,snippet,mime,image),"
+	                              "queries(nextPage)");
 
 	return url;
 }
@@ -294,17 +293,17 @@ static unique_ptr<FunctionData> GoogleImageSearchBind(ClientContext &context, Ta
 	names.emplace_back("mime");
 	names.emplace_back("snippet");
 
-	return_types.emplace_back(LogicalType::VARCHAR);  // title
-	return_types.emplace_back(LogicalType::VARCHAR);  // link (page URL)
-	return_types.emplace_back(LogicalType::VARCHAR);  // image_url
-	return_types.emplace_back(LogicalType::VARCHAR);  // thumbnail_url
-	return_types.emplace_back(LogicalType::INTEGER);  // width
-	return_types.emplace_back(LogicalType::INTEGER);  // height
-	return_types.emplace_back(LogicalType::INTEGER);  // thumbnail_width
-	return_types.emplace_back(LogicalType::INTEGER);  // thumbnail_height
-	return_types.emplace_back(LogicalType::VARCHAR);  // context_link
-	return_types.emplace_back(LogicalType::VARCHAR);  // mime
-	return_types.emplace_back(LogicalType::VARCHAR);  // snippet
+	return_types.emplace_back(LogicalType::VARCHAR); // title
+	return_types.emplace_back(LogicalType::VARCHAR); // link (page URL)
+	return_types.emplace_back(LogicalType::VARCHAR); // image_url
+	return_types.emplace_back(LogicalType::VARCHAR); // thumbnail_url
+	return_types.emplace_back(LogicalType::INTEGER); // width
+	return_types.emplace_back(LogicalType::INTEGER); // height
+	return_types.emplace_back(LogicalType::INTEGER); // thumbnail_width
+	return_types.emplace_back(LogicalType::INTEGER); // thumbnail_height
+	return_types.emplace_back(LogicalType::VARCHAR); // context_link
+	return_types.emplace_back(LogicalType::VARCHAR); // mime
+	return_types.emplace_back(LogicalType::VARCHAR); // snippet
 
 	return std::move(bind_data);
 }
