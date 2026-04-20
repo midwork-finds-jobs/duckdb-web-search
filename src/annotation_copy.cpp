@@ -91,9 +91,8 @@ static unique_ptr<FunctionData> AnnotationCopyBind(ClientContext &context, CopyF
 
 	// Validate column count (2-4 columns)
 	if (sql_types.size() < 2 || sql_types.size() > 4) {
-		throw BinderException(
-		    "google_pse_annotation format requires 2-4 columns:\n"
-		    "  (url_pattern VARCHAR, action VARCHAR [, comment VARCHAR] [, score DOUBLE])");
+		throw BinderException("google_pse_annotation format requires 2-4 columns:\n"
+		                      "  (url_pattern VARCHAR, action VARCHAR [, comment VARCHAR] [, score DOUBLE])");
 	}
 
 	// First column: url_pattern (VARCHAR)
@@ -185,8 +184,8 @@ static void AnnotationCopySink(ExecutionContext &context, FunctionData &bind_dat
 	for (idx_t row_idx = 0; row_idx < input.size(); row_idx++) {
 		// Check annotation count limit
 		if (state.annotation_count >= MAX_ANNOTATIONS) {
-			throw InvalidInputException(
-			    "Google PSE annotation limit exceeded: maximum %d annotations allowed", MAX_ANNOTATIONS);
+			throw InvalidInputException("Google PSE annotation limit exceeded: maximum %d annotations allowed",
+			                            MAX_ANNOTATIONS);
 		}
 
 		auto url_idx = url_data.sel->get_index(row_idx);
@@ -202,8 +201,7 @@ static void AnnotationCopySink(ExecutionContext &context, FunctionData &bind_dat
 
 		// Validate action
 		if (action != "include" && action != "exclude") {
-			throw InvalidInputException(
-			    "Invalid action '%s'. Must be 'include' or 'exclude'", action);
+			throw InvalidInputException("Invalid action '%s'. Must be 'include' or 'exclude'", action);
 		}
 
 		string label_name = (action == "include") ? "_include_" : "_exclude_";
@@ -217,8 +215,7 @@ static void AnnotationCopySink(ExecutionContext &context, FunctionData &bind_dat
 				double score = scores[score_idx_sel];
 				// Validate score range
 				if (score < -1.0 || score > 1.0) {
-					throw InvalidInputException(
-					    "Invalid score %.2f. Must be between -1.0 and 1.0", score);
+					throw InvalidInputException("Invalid score %.2f. Must be between -1.0 and 1.0", score);
 				}
 				// Format score with 1 decimal place
 				char score_buf[32];
@@ -246,8 +243,8 @@ static void AnnotationCopySink(ExecutionContext &context, FunctionData &bind_dat
 
 		// Check file size limit before writing
 		if (state.bytes_written + xml.size() + 15 > MAX_FILE_SIZE_BYTES) { // 15 for closing tag
-			throw InvalidInputException(
-			    "Google PSE annotation file size limit exceeded: maximum %d bytes allowed", MAX_FILE_SIZE_BYTES);
+			throw InvalidInputException("Google PSE annotation file size limit exceeded: maximum %d bytes allowed",
+			                            MAX_FILE_SIZE_BYTES);
 		}
 
 		state.handle->Write((void *)xml.c_str(), xml.size());
