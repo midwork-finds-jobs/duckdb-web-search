@@ -86,7 +86,7 @@ static string XmlEscape(const string &input) {
 
 // Bind function
 static unique_ptr<FunctionData> AnnotationCopyBind(ClientContext &context, CopyFunctionBindInput &input,
-                                                   const vector<string> &names, const vector<LogicalType> &sql_types) {
+                                                   const vector<Identifier> &names, const vector<LogicalType> &sql_types) {
 	auto result = make_uniq<AnnotationCopyBindData>();
 
 	// Validate column count (2-4 columns)
