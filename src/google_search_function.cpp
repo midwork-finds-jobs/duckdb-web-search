@@ -652,7 +652,8 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 		if (filter->GetExpressionClass() == ExpressionClass::BOUND_OPERATOR) {
 			auto &op = filter->Cast<BoundOperatorExpression>();
 
-			if (op.GetChildren().size() >= 2 && op.GetChildren()[0]->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF) {
+			if (op.GetChildren().size() >= 2 &&
+			    op.GetChildren()[0]->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF) {
 				auto &col_ref = op.GetChildren()[0]->Cast<BoundColumnRefExpression>();
 
 				if (col_ref.GetName() == "site") {
@@ -767,7 +768,8 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 					}
 
 					// Handle exact_match = 'phrase' -> exactTerms
-					if (col_ref.GetName() == "exact_match" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+					if (col_ref.GetName() == "exact_match" &&
+					    constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
 						bind_data.pushed_exact_match = constant.GetValue().ToString();
 						filters_to_remove.push_back(i);
 						continue;
