@@ -496,7 +496,7 @@ static void FetchGoogleSearchResults(ClientContext &context, GoogleSearchGlobalS
 
 // Bind function
 static unique_ptr<FunctionData> GoogleSearchBind(ClientContext &context, TableFunctionBindInput &input,
-                                                 vector<LogicalType> &return_types, vector<string> &names) {
+                                                 vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto bind_data = make_uniq<GoogleSearchBindData>();
 
 	// First positional argument is the query
@@ -512,7 +512,7 @@ static unique_ptr<FunctionData> GoogleSearchBind(ClientContext &context, TableFu
 
 	// Parse named parameters (non-pushdown filters)
 	for (auto &kv : input.named_parameters) {
-		auto key = StringUtil::Lower(kv.first);
+		auto key = StringUtil::Lower(kv.first.GetIdentifierName());
 		string value = kv.second.GetValue<string>();
 
 		if (key == "exact_terms") {
@@ -615,14 +615,14 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 			auto &func = filter->Cast<BoundFunctionExpression>();
 
 			// Handle suffix (LIKE '%string')
-			if (func.function.name == "suffix" && func.children.size() >= 2) {
-				if (func.children[0]->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
-				    func.children[1]->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
-					auto &col_ref = func.children[0]->Cast<BoundColumnRefExpression>();
-					auto &constant = func.children[1]->Cast<BoundConstantExpression>();
+			if (func.Function().GetName() == "suffix" && func.GetChildren().size() >= 2) {
+				if (func.GetChildren()[0]->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
+				    func.GetChildren()[1]->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
+					auto &col_ref = func.GetChildren()[0]->Cast<BoundColumnRefExpression>();
+					auto &constant = func.GetChildren()[1]->Cast<BoundConstantExpression>();
 
-					if (col_ref.GetName() == "site" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
-						string suffix = constant.value.ToString();
+					if (col_ref.GetName() == "site" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+						string suffix = constant.GetValue().ToString();
 						// site LIKE '%.google.com' -> include google.com
 						bind_data.site_includes.push_back(suffix);
 						filters_to_remove.push_back(i);
@@ -632,14 +632,14 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 			}
 
 			// Handle prefix (LIKE 'string%')
-			if (func.function.name == "prefix" && func.children.size() >= 2) {
-				if (func.children[0]->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
-				    func.children[1]->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
-					auto &col_ref = func.children[0]->Cast<BoundColumnRefExpression>();
-					auto &constant = func.children[1]->Cast<BoundConstantExpression>();
+			if (func.Function().GetName() == "prefix" && func.GetChildren().size() >= 2) {
+				if (func.GetChildren()[0]->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
+				    func.GetChildren()[1]->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
+					auto &col_ref = func.GetChildren()[0]->Cast<BoundColumnRefExpression>();
+					auto &constant = func.GetChildren()[1]->Cast<BoundConstantExpression>();
 
-					if (col_ref.GetName() == "site" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
-						string prefix = constant.value.ToString();
+					if (col_ref.GetName() == "site" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+						string prefix = constant.GetValue().ToString();
 						bind_data.site_includes.push_back(prefix);
 						filters_to_remove.push_back(i);
 						continue;
@@ -652,18 +652,18 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 		if (filter->GetExpressionClass() == ExpressionClass::BOUND_OPERATOR) {
 			auto &op = filter->Cast<BoundOperatorExpression>();
 
-			if (op.children.size() >= 2 && op.children[0]->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF) {
-				auto &col_ref = op.children[0]->Cast<BoundColumnRefExpression>();
+			if (op.GetChildren().size() >= 2 && op.GetChildren()[0]->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF) {
+				auto &col_ref = op.GetChildren()[0]->Cast<BoundColumnRefExpression>();
 
 				if (col_ref.GetName() == "site") {
 					vector<string> site_values;
 					bool all_constants = true;
 
-					for (size_t j = 1; j < op.children.size(); j++) {
-						if (op.children[j]->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
-							auto &constant = op.children[j]->Cast<BoundConstantExpression>();
-							if (constant.value.type().id() == LogicalTypeId::VARCHAR) {
-								site_values.push_back(constant.value.ToString());
+					for (size_t j = 1; j < op.GetChildren().size(); j++) {
+						if (op.GetChildren()[j]->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
+							auto &constant = op.GetChildren()[j]->Cast<BoundConstantExpression>();
+							if (constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+								site_values.push_back(constant.GetValue().ToString());
 								continue;
 							}
 						}
@@ -685,11 +685,11 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 					vector<string> term_values;
 					bool all_constants = true;
 
-					for (size_t j = 1; j < op.children.size(); j++) {
-						if (op.children[j]->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
-							auto &constant = op.children[j]->Cast<BoundConstantExpression>();
-							if (constant.value.type().id() == LogicalTypeId::VARCHAR) {
-								term_values.push_back(constant.value.ToString());
+					for (size_t j = 1; j < op.GetChildren().size(); j++) {
+						if (op.GetChildren()[j]->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
+							auto &constant = op.GetChildren()[j]->Cast<BoundConstantExpression>();
+							if (constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+								term_values.push_back(constant.GetValue().ToString());
 								continue;
 							}
 						}
@@ -709,25 +709,28 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 		}
 
 		// Handle comparison expressions
-		if (filter->GetExpressionClass() == ExpressionClass::BOUND_COMPARISON) {
-			auto &comparison = filter->Cast<BoundComparisonExpression>();
+		if (filter->GetExpressionClass() == ExpressionClass::BOUND_FUNCTION &&
+		    BoundComparisonExpression::IsComparison(*filter)) {
+			auto &comparison_func = filter->Cast<BoundFunctionExpression>();
+			auto &comparison_left = BoundComparisonExpression::Left(comparison_func);
+			auto &comparison_right = BoundComparisonExpression::Right(comparison_func);
 
 			// Check for site = 'value'
-			if (filter->type == ExpressionType::COMPARE_EQUAL) {
-				if (comparison.left->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
-				    comparison.right->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
-					auto &col_ref = comparison.left->Cast<BoundColumnRefExpression>();
-					auto &constant = comparison.right->Cast<BoundConstantExpression>();
+			if (filter->GetExpressionType() == ExpressionType::COMPARE_EQUAL) {
+				if (comparison_left.GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
+				    comparison_right.GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
+					auto &col_ref = comparison_left.Cast<BoundColumnRefExpression>();
+					auto &constant = comparison_right.Cast<BoundConstantExpression>();
 
-					if (col_ref.GetName() == "site" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
-						bind_data.site_includes.push_back(constant.value.ToString());
+					if (col_ref.GetName() == "site" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+						bind_data.site_includes.push_back(constant.GetValue().ToString());
 						filters_to_remove.push_back(i);
 						continue;
 					}
 
 					// Handle language = 'value' -> lr param
-					if (col_ref.GetName() == "language" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
-						string lang = constant.value.ToString();
+					if (col_ref.GetName() == "language" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+						string lang = constant.GetValue().ToString();
 						// Convert to Google format if needed (e.g., 'en' -> 'lang_en')
 						if (lang.find("lang_") != 0) {
 							lang = "lang_" + StringUtil::Lower(lang);
@@ -738,8 +741,8 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 					}
 
 					// Handle country = 'value' -> cr param
-					if (col_ref.GetName() == "country" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
-						string country = constant.value.ToString();
+					if (col_ref.GetName() == "country" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+						string country = constant.GetValue().ToString();
 						// Convert to Google format if needed (e.g., 'US' -> 'countryUS')
 						if (country.find("country") != 0) {
 							country = "country" + StringUtil::Upper(country);
@@ -750,22 +753,22 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 					}
 
 					// Handle file_type = 'value' -> fileType param
-					if (col_ref.GetName() == "file_type" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
-						bind_data.pushed_file_type = StringUtil::Lower(constant.value.ToString());
+					if (col_ref.GetName() == "file_type" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+						bind_data.pushed_file_type = StringUtil::Lower(constant.GetValue().ToString());
 						filters_to_remove.push_back(i);
 						continue;
 					}
 
 					// Handle term = 'value' -> append to query (single) or orTerms (multiple)
-					if (col_ref.GetName() == "term" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
-						bind_data.term_query.push_back(constant.value.ToString());
+					if (col_ref.GetName() == "term" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+						bind_data.term_query.push_back(constant.GetValue().ToString());
 						filters_to_remove.push_back(i);
 						continue;
 					}
 
 					// Handle exact_match = 'phrase' -> exactTerms
-					if (col_ref.GetName() == "exact_match" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
-						bind_data.pushed_exact_match = constant.value.ToString();
+					if (col_ref.GetName() == "exact_match" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+						bind_data.pushed_exact_match = constant.GetValue().ToString();
 						filters_to_remove.push_back(i);
 						continue;
 					}
@@ -773,21 +776,21 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 			}
 
 			// Check for site != 'value' (exclude)
-			if (filter->type == ExpressionType::COMPARE_NOTEQUAL) {
-				if (comparison.left->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
-				    comparison.right->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
-					auto &col_ref = comparison.left->Cast<BoundColumnRefExpression>();
-					auto &constant = comparison.right->Cast<BoundConstantExpression>();
+			if (filter->GetExpressionType() == ExpressionType::COMPARE_NOTEQUAL) {
+				if (comparison_left.GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
+				    comparison_right.GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
+					auto &col_ref = comparison_left.Cast<BoundColumnRefExpression>();
+					auto &constant = comparison_right.Cast<BoundConstantExpression>();
 
-					if (col_ref.GetName() == "site" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
-						bind_data.site_excludes.push_back(constant.value.ToString());
+					if (col_ref.GetName() == "site" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+						bind_data.site_excludes.push_back(constant.GetValue().ToString());
 						filters_to_remove.push_back(i);
 						continue;
 					}
 
 					// Handle term != 'value' -> excludeTerms
-					if (col_ref.GetName() == "term" && constant.value.type().id() == LogicalTypeId::VARCHAR) {
-						bind_data.term_exclude.push_back(constant.value.ToString());
+					if (col_ref.GetName() == "term" && constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+						bind_data.term_exclude.push_back(constant.GetValue().ToString());
 						filters_to_remove.push_back(i);
 						continue;
 					}
@@ -795,24 +798,24 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 			}
 
 			// Handle timestamp/date comparisons for dateRestrict
-			if (filter->type == ExpressionType::COMPARE_GREATERTHAN ||
-			    filter->type == ExpressionType::COMPARE_GREATERTHANOREQUALTO) {
-				if (comparison.left->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
-				    comparison.right->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
-					auto &col_ref = comparison.left->Cast<BoundColumnRefExpression>();
-					auto &constant = comparison.right->Cast<BoundConstantExpression>();
+			if (filter->GetExpressionType() == ExpressionType::COMPARE_GREATERTHAN ||
+			    filter->GetExpressionType() == ExpressionType::COMPARE_GREATERTHANOREQUALTO) {
+				if (comparison_left.GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
+				    comparison_right.GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
+					auto &col_ref = comparison_left.Cast<BoundColumnRefExpression>();
+					auto &constant = comparison_right.Cast<BoundConstantExpression>();
 
 					if (col_ref.GetName() == "timestamp" || col_ref.GetName() == "date") {
 						timestamp_t ts_value;
-						if (constant.value.type().id() == LogicalTypeId::TIMESTAMP ||
-						    constant.value.type().id() == LogicalTypeId::TIMESTAMP_TZ) {
-							ts_value = timestamp_t(constant.value.GetValue<int64_t>());
-						} else if (constant.value.type().id() == LogicalTypeId::DATE) {
+						if (constant.GetValue().type().id() == LogicalTypeId::TIMESTAMP ||
+						    constant.GetValue().type().id() == LogicalTypeId::TIMESTAMP_TZ) {
+							ts_value = timestamp_t(constant.GetValue().GetValue<int64_t>());
+						} else if (constant.GetValue().type().id() == LogicalTypeId::DATE) {
 							// Convert date to timestamp
-							auto date_val = constant.value.GetValue<date_t>();
+							auto date_val = constant.GetValue().GetValue<date_t>();
 							ts_value = Timestamp::FromDatetime(date_val, dtime_t(0));
-						} else if (constant.value.type().id() == LogicalTypeId::VARCHAR) {
-							string ts_str = constant.value.ToString();
+						} else if (constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+							string ts_str = constant.GetValue().ToString();
 							ts_value = Timestamp::FromString(ts_str, false);
 						} else {
 							continue;
@@ -826,23 +829,23 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 				}
 			}
 
-			if (filter->type == ExpressionType::COMPARE_LESSTHAN ||
-			    filter->type == ExpressionType::COMPARE_LESSTHANOREQUALTO) {
-				if (comparison.left->GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
-				    comparison.right->GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
-					auto &col_ref = comparison.left->Cast<BoundColumnRefExpression>();
-					auto &constant = comparison.right->Cast<BoundConstantExpression>();
+			if (filter->GetExpressionType() == ExpressionType::COMPARE_LESSTHAN ||
+			    filter->GetExpressionType() == ExpressionType::COMPARE_LESSTHANOREQUALTO) {
+				if (comparison_left.GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF &&
+				    comparison_right.GetExpressionClass() == ExpressionClass::BOUND_CONSTANT) {
+					auto &col_ref = comparison_left.Cast<BoundColumnRefExpression>();
+					auto &constant = comparison_right.Cast<BoundConstantExpression>();
 
 					if (col_ref.GetName() == "timestamp" || col_ref.GetName() == "date") {
 						timestamp_t ts_value;
-						if (constant.value.type().id() == LogicalTypeId::TIMESTAMP ||
-						    constant.value.type().id() == LogicalTypeId::TIMESTAMP_TZ) {
-							ts_value = timestamp_t(constant.value.GetValue<int64_t>());
-						} else if (constant.value.type().id() == LogicalTypeId::DATE) {
-							auto date_val = constant.value.GetValue<date_t>();
+						if (constant.GetValue().type().id() == LogicalTypeId::TIMESTAMP ||
+						    constant.GetValue().type().id() == LogicalTypeId::TIMESTAMP_TZ) {
+							ts_value = timestamp_t(constant.GetValue().GetValue<int64_t>());
+						} else if (constant.GetValue().type().id() == LogicalTypeId::DATE) {
+							auto date_val = constant.GetValue().GetValue<date_t>();
 							ts_value = Timestamp::FromDatetime(date_val, dtime_t(0));
-						} else if (constant.value.type().id() == LogicalTypeId::VARCHAR) {
-							string ts_str = constant.value.ToString();
+						} else if (constant.GetValue().type().id() == LogicalTypeId::VARCHAR) {
+							string ts_str = constant.GetValue().ToString();
 							ts_value = Timestamp::FromString(ts_str, false);
 						} else {
 							continue;
@@ -857,7 +860,7 @@ static void GoogleSearchPushdownComplexFilter(ClientContext &context, LogicalGet
 		}
 
 		// Handle BETWEEN (shows as BOUND_BETWEEN)
-		if (filter->type == ExpressionType::COMPARE_BETWEEN) {
+		if (filter->GetExpressionType() == ExpressionType::COMPARE_BETWEEN) {
 			// BETWEEN is typically rewritten to >= AND <=, but just in case
 			continue;
 		}
@@ -946,7 +949,7 @@ void OptimizeGoogleSearchLimitPushdown(unique_ptr<LogicalOperator> &op) {
 		}
 
 		auto &get = child.get().Cast<LogicalGet>();
-		if (get.function.name != "google_search") {
+		if (get.function.GetName() != "google_search") {
 			OptimizeGoogleSearchLimitPushdown(op->children[0]);
 			return;
 		}
@@ -992,7 +995,7 @@ void OptimizeGoogleSearchOrderByPushdown(unique_ptr<LogicalOperator> &op) {
 		}
 
 		auto &get = child.get().Cast<LogicalGet>();
-		if (get.function.name != "google_search") {
+		if (get.function.GetName() != "google_search") {
 			OptimizeGoogleSearchOrderByPushdown(op->children[0]);
 			return;
 		}
@@ -1007,7 +1010,7 @@ void OptimizeGoogleSearchOrderByPushdown(unique_ptr<LogicalOperator> &op) {
 		auto &expr = order_node.expression;
 
 		// Check if it's a column reference
-		if (expr->type != ExpressionType::BOUND_COLUMN_REF) {
+		if (expr->GetExpressionType() != ExpressionType::BOUND_COLUMN_REF) {
 			OptimizeGoogleSearchOrderByPushdown(op->children[0]);
 			return;
 		}
@@ -1016,7 +1019,7 @@ void OptimizeGoogleSearchOrderByPushdown(unique_ptr<LogicalOperator> &op) {
 
 		// Get column name from bind data
 		auto &bind_data = get.bind_data->Cast<GoogleSearchBindData>();
-		idx_t col_idx = col_ref.binding.column_index;
+		idx_t col_idx = col_ref.Binding().column_index.GetIndex();
 
 		if (col_idx >= bind_data.column_names.size()) {
 			OptimizeGoogleSearchOrderByPushdown(op->children[0]);
@@ -1064,19 +1067,21 @@ void RegisterGoogleSearchFunction(ExtensionLoader &loader) {
 	google_search_func.pushdown_complex_filter = GoogleSearchPushdownComplexFilter;
 
 	// Named parameters for non-pushdown filters
-	google_search_func.named_parameters["exact_terms"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["exclude_terms"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["or_terms"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["file_type"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["country"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["cr"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["lr"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["language"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["interface_language"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["safe"] = LogicalType::BOOLEAN;
-	google_search_func.named_parameters["rights"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["sort"] = LogicalType::VARCHAR;
-	google_search_func.named_parameters["structured_data"] = LogicalType::VARCHAR;
+	google_search_func.GetSignature().WithTypedKwargs("options", [](TypedKwargs &options) {
+		options.Add("exact_terms", LogicalType::VARCHAR);
+		options.Add("exclude_terms", LogicalType::VARCHAR);
+		options.Add("or_terms", LogicalType::VARCHAR);
+		options.Add("file_type", LogicalType::VARCHAR);
+		options.Add("country", LogicalType::VARCHAR);
+		options.Add("cr", LogicalType::VARCHAR);
+		options.Add("lr", LogicalType::VARCHAR);
+		options.Add("language", LogicalType::VARCHAR);
+		options.Add("interface_language", LogicalType::VARCHAR);
+		options.Add("safe", LogicalType::BOOLEAN);
+		options.Add("rights", LogicalType::VARCHAR);
+		options.Add("sort", LogicalType::VARCHAR);
+		options.Add("structured_data", LogicalType::VARCHAR);
+	});
 
 	loader.RegisterFunction(google_search_func);
 }
