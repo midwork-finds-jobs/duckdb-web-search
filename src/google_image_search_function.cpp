@@ -239,7 +239,7 @@ static void FetchGoogleImageSearchResults(ClientContext &context, GoogleImageSea
 
 // Bind function
 static unique_ptr<FunctionData> GoogleImageSearchBind(ClientContext &context, TableFunctionBindInput &input,
-                                                      vector<LogicalType> &return_types, vector<string> &names) {
+                                                      vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto bind_data = make_uniq<GoogleImageSearchBindData>();
 
 	if (input.inputs.empty()) {
@@ -254,7 +254,7 @@ static unique_ptr<FunctionData> GoogleImageSearchBind(ClientContext &context, Ta
 
 	// Parse named parameters
 	for (auto &kv : input.named_parameters) {
-		auto key = StringUtil::Lower(kv.first);
+		auto key = StringUtil::Lower(kv.first.GetIdentifierName());
 		string value = kv.second.GetValue<string>();
 
 		if (key == "exact_terms") {
@@ -364,7 +364,7 @@ void OptimizeGoogleImageSearchLimitPushdown(unique_ptr<LogicalOperator> &op) {
 		}
 
 		auto &get = child.get().Cast<LogicalGet>();
-		if (get.function.name != "google_image_search") {
+		if (get.function.GetName() != "google_image_search") {
 			OptimizeGoogleImageSearchLimitPushdown(op->children[0]);
 			return;
 		}
@@ -397,18 +397,18 @@ void RegisterGoogleImageSearchFunction(ExtensionLoader &loader) {
 	                   GoogleImageSearchInitGlobal);
 
 	// Named parameters for filter pushdown
-	func.named_parameters["exact_terms"] = LogicalType::VARCHAR;
-	func.named_parameters["exclude_terms"] = LogicalType::VARCHAR;
-	func.named_parameters["site"] = LogicalType::VARCHAR;
-	func.named_parameters["date_restrict"] = LogicalType::VARCHAR;
-	func.named_parameters["safe"] = LogicalType::BOOLEAN;
-	func.named_parameters["rights"] = LogicalType::VARCHAR;
-
-	// Image-specific parameters
-	func.named_parameters["img_size"] = LogicalType::VARCHAR;
-	func.named_parameters["img_type"] = LogicalType::VARCHAR;
-	func.named_parameters["img_color_type"] = LogicalType::VARCHAR;
-	func.named_parameters["img_dominant_color"] = LogicalType::VARCHAR;
+	func.GetSignature().WithTypedKwargs("options", [](TypedKwargs &options) {
+		options.Add("exact_terms", LogicalType::VARCHAR);
+		options.Add("exclude_terms", LogicalType::VARCHAR);
+		options.Add("site", LogicalType::VARCHAR);
+		options.Add("date_restrict", LogicalType::VARCHAR);
+		options.Add("safe", LogicalType::BOOLEAN);
+		options.Add("rights", LogicalType::VARCHAR);
+		options.Add("img_size", LogicalType::VARCHAR);
+		options.Add("img_type", LogicalType::VARCHAR);
+		options.Add("img_color_type", LogicalType::VARCHAR);
+		options.Add("img_dominant_color", LogicalType::VARCHAR);
+	});
 
 	loader.RegisterFunction(func);
 }
