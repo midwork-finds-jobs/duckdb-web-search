@@ -9,13 +9,9 @@ project(${TARGET_NAME})
 include_directories(src/include)
 
 set(EXTENSION_SOURCES
-    src/web_search_extension.cpp
-    src/google_search_secret.cpp
-    src/google_search_function.cpp
-    src/google_image_search_function.cpp
-    src/annotation_copy.cpp
-    src/http_client.cpp
-)
+    src/web_search_extension.cpp src/google_search_secret.cpp
+    src/google_search_function.cpp src/google_image_search_function.cpp
+    src/annotation_copy.cpp src/http_client.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
